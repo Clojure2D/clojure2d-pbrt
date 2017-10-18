@@ -2,7 +2,7 @@
   (:require [clojure2d.math :as m]
             [clojure2d.math.vector :as v]
             [clojure2d.color :as c])
-  (:import [clojure2d.math.vector Vec3]))
+  (:import [clojure2d.math.vector Vec2 Vec3]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -575,6 +575,20 @@
   (let [^doubles le (blackbody lambda t)
         maxl (blackbody-val (* 1.0e9 (/ 2.8977721e-3 t)) t)]
     (amap le idx ret (/ (aget le idx) maxl))))
+
+(defn average-spectrum-samples
+  "Average samples. Vals: lambda and value as Vec2."
+  [vals ^double lambda-start ^double lambda-end]
+  (let [n (count vals)
+        n- (dec n)
+        ^Vec2 fst (vals 0)
+        ^Vec2 lst (vals n-)]
+    (cond
+      (== n 1) (.y fst)
+      (<= lambda-end (.x fst)) (.y fst)
+      (>= lambda-start (.x lst)) (.y lst)
+      :default nil)
+    ))
 
 (defprotocol SpectrumProto
   (y [v])
