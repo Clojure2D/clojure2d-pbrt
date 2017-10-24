@@ -16,7 +16,8 @@
   (inverse [m])
   (mult [m1 m2])
   (emult [m a])
-  (vmult [m v]))
+  (vmult [m v])
+  (det [m]))
 
 (deftype Matrix4x4 [^double m00 ^double m01 ^double m02 ^double m03
                     ^double m10 ^double m11 ^double m12 ^double m13
@@ -39,6 +40,25 @@
                              m01 m11 m21 m31
                              m02 m12 m22 m23
                              m03 m13 m23 m33))
+  (det [_]
+    (let [s0 (- (* m00 m11) (* m10 m01))
+          s1 (- (* m00 m12) (* m10 m02))
+          s2 (- (* m00 m13) (* m10 m03))
+          s3 (- (* m01 m12) (* m11 m02))
+          s4 (- (* m01 m13) (* m11 m03))
+          s5 (- (* m02 m13) (* m12 m03))
+          c5 (- (* m22 m33) (* m32 m23))
+          c4 (- (* m21 m33) (* m31 m23))
+          c3 (- (* m21 m32) (* m31 m22))
+          c2 (- (* m20 m33) (* m30 m23))
+          c1 (- (* m20 m32) (* m30 m22))
+          c0 (- (* m20 m31) (* m30 m21))]
+      (-> (* s0 c5)
+          (- (* s1 c4))
+          (+ (* s2 c3))
+          (+ (* s3 c2))
+          (- (* s4 c1))
+          (+ (* s5 c0)))))
   (inverse [_]
     (let [s0 (- (* m00 m11) (* m10 m01))
           s1 (- (* m00 m12) (* m10 m02))
@@ -207,7 +227,6 @@
       (Vec4. (+ (* (.x v) m00) (* (.y v) m01) (* (.z v) m02) (* (.w v) m03))
              (+ (* (.x v) m10) (* (.y v) m11) (* (.z v) m12) (* (.w v) m13))
              (+ (* (.x v) m20) (* (.y v) m21) (* (.z v) m22) (* (.w v) m23))
-             (+ (* (.x v) m30) (* (.y v) m31) (* (.z v) m32) (* (.w v) m33)))))
-  )
+             (+ (* (.x v) m30) (* (.y v) m31) (* (.z v) m32) (* (.w v) m33))))))
 
 (def ^Matrix4x4 I (Matrix4x4. 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1))

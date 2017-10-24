@@ -720,46 +720,121 @@
 
 ;;
 
-(deftype SampledSpectrum [^double sampled-lambda-start
-                          ^double sampled-lambda-end
-                          ^long n-spectral-samples
-                          ^ArrayVec c
-                          ^ArrayVec x ^ArrayVec y ^ArrayVec z
-                          ^ArrayVec refl-white   ^ArrayVec illum-white
-                          ^ArrayVec refl-cyan    ^ArrayVec illum-cyan
-                          ^ArrayVec refl-magenta ^ArrayVec illum-magenta
-                          ^ArrayVec refl-yellow  ^ArrayVec illum-yellow
-                          ^ArrayVec refl-red     ^ArrayVec illum-red 
-                          ^ArrayVec refl-green   ^ArrayVec illum-green
-                          ^ArrayVec refl-blue    ^ArrayVec illum-blue])
+(defrecord SampledSpectrumConfig [^double sampled-lambda-start
+                                  ^double sampled-lambda-end
+                                  ^long n-spectral-samples
+                                  ^ArrayVec x ^ArrayVec y ^ArrayVec z
+                                  ^ArrayVec refl-white   ^ArrayVec illum-white
+                                  ^ArrayVec refl-cyan    ^ArrayVec illum-cyan
+                                  ^ArrayVec refl-magenta ^ArrayVec illum-magenta
+                                  ^ArrayVec refl-yellow  ^ArrayVec illum-yellow
+                                  ^ArrayVec refl-red     ^ArrayVec illum-red 
+                                  ^ArrayVec refl-green   ^ArrayVec illum-green
+                                  ^ArrayVec refl-blue    ^ArrayVec illum-blue])
 
-(defn make-sampled-spectrum
+(deftype SampledSpectrum [^SampledSpectrumConfig config
+                          ^ArrayVec samples
+                          ^ArrayVec lambda
+                          segments])
+
+
+
+(defn make-sampled-spectrum-config
   "Create sampled spectrum type based on ArrayVectors"
   ([^double n lambda-start lambda-end]
-   (SampledSpectrum. lambda-start lambda-end n (ArrayVec. (double-array n))
-                     (v/array-vec (simple-resample cie-x lambda-start lambda-end n))
-                     (v/array-vec (simple-resample cie-y lambda-start lambda-end n))
-                     (v/array-vec (simple-resample cie-z lambda-start lambda-end n))
-                     
-                     (v/array-vec (simple-resample rgb-refl-to-spect-white lambda-start lambda-end n))
-                     (v/array-vec (simple-resample rgb-illum-to-spect-white lambda-start lambda-end n))
+   (->SampledSpectrumConfig lambda-start lambda-end n
+                            (v/array-vec (simple-resample cie-x lambda-start lambda-end n))
+                            (v/array-vec (simple-resample cie-y lambda-start lambda-end n))
+                            (v/array-vec (simple-resample cie-z lambda-start lambda-end n))
+                            
+                            (v/array-vec (simple-resample rgb-refl-to-spect-white lambda-start lambda-end n))
+                            (v/array-vec (simple-resample rgb-illum-to-spect-white lambda-start lambda-end n))
 
-                     (v/array-vec (simple-resample rgb-refl-to-spect-cyan lambda-start lambda-end n))
-                     (v/array-vec (simple-resample rgb-illum-to-spect-cyan lambda-start lambda-end n))
+                            (v/array-vec (simple-resample rgb-refl-to-spect-cyan lambda-start lambda-end n))
+                            (v/array-vec (simple-resample rgb-illum-to-spect-cyan lambda-start lambda-end n))
 
-                     (v/array-vec (simple-resample rgb-refl-to-spect-magenta lambda-start lambda-end n))
-                     (v/array-vec (simple-resample rgb-illum-to-spect-magenta lambda-start lambda-end n))
+                            (v/array-vec (simple-resample rgb-refl-to-spect-magenta lambda-start lambda-end n))
+                            (v/array-vec (simple-resample rgb-illum-to-spect-magenta lambda-start lambda-end n))
 
-                     (v/array-vec (simple-resample rgb-refl-to-spect-yellow lambda-start lambda-end n))
-                     (v/array-vec (simple-resample rgb-illum-to-spect-yellow lambda-start lambda-end n))
+                            (v/array-vec (simple-resample rgb-refl-to-spect-yellow lambda-start lambda-end n))
+                            (v/array-vec (simple-resample rgb-illum-to-spect-yellow lambda-start lambda-end n))
 
-                     (v/array-vec (simple-resample rgb-refl-to-spect-red lambda-start lambda-end n))
-                     (v/array-vec (simple-resample rgb-illum-to-spect-red lambda-start lambda-end n))
+                            (v/array-vec (simple-resample rgb-refl-to-spect-red lambda-start lambda-end n))
+                            (v/array-vec (simple-resample rgb-illum-to-spect-red lambda-start lambda-end n))
 
-                     (v/array-vec (simple-resample rgb-refl-to-spect-green lambda-start lambda-end n))
-                     (v/array-vec (simple-resample rgb-illum-to-spect-green lambda-start lambda-end n))
+                            (v/array-vec (simple-resample rgb-refl-to-spect-green lambda-start lambda-end n))
+                            (v/array-vec (simple-resample rgb-illum-to-spect-green lambda-start lambda-end n))
 
-                     (v/array-vec (simple-resample rgb-refl-to-spect-blue lambda-start lambda-end n))
-                     (v/array-vec (simple-resample rgb-illum-to-spect-blue lambda-start lambda-end n))))
-  ([n] (make-sampled-spectrum n 400 700))
-  ([] (make-sampled-spectrum 60 400 700)))
+                            (v/array-vec (simple-resample rgb-refl-to-spect-blue lambda-start lambda-end n))
+                            (v/array-vec (simple-resample rgb-illum-to-spect-blue lambda-start lambda-end n))))
+  ([n] (make-sampled-spectrum-config n 400 700))
+  ([] (make-sampled-spectrum-config 60 400 700)))
+
+(defn sampled-from-rgb
+  "Create sampled spectrum from RGB"
+  [^SampledSpectrumConfig sampled-spectrum-cfg ^Vec3 rgb spectrum-type]
+  (let [r (v/array-vec (repeatedly (.n-spectral-samples sampled-spectrum-cfg) (constantly 0.0)))]
+    (if (= spectrum-type :reflectance)
+      (v/mult (cond
+                (bool-and (<= (.x rgb) (.y rgb))
+                          (<= (.x rgb) (.z rgb))) (if (<= (.y rgb) (.z rgb))
+                                                    (-> r
+                                                        (v/add (v/mult (.refl-white sampled-spectrum-cfg) (.x rgb)))
+                                                        (v/add (v/mult (.refl-cyan sampled-spectrum-cfg) (- (.y rgb) (.x rgb))))
+                                                        (v/add (v/mult (.refl-blue sampled-spectrum-cfg) (- (.z rgb) (.y rgb)))))
+                                                    (-> r
+                                                        (v/add (v/mult (.refl-white sampled-spectrum-cfg) (.x rgb)))
+                                                        (v/add (v/mult (.refl-cyan sampled-spectrum-cfg) (- (.z rgb) (.x rgb))))
+                                                        (v/add (v/mult (.refl-green sampled-spectrum-cfg) (- (.y rgb) (.z rgb))))))
+                (bool-and (<= (.y rgb) (.x rgb))
+                          (<= (.y rgb) (.z rgb))) (if (<= (.x rgb) (.z rgb))
+                                                    (-> r
+                                                        (v/add (v/mult (.refl-white sampled-spectrum-cfg) (.y rgb)))
+                                                        (v/add (v/mult (.refl-magenta sampled-spectrum-cfg) (- (.x rgb) (.y rgb))))
+                                                        (v/add (v/mult (.refl-blue sampled-spectrum-cfg) (- (.z rgb) (.x rgb)))))
+                                                    (-> r
+                                                        (v/add (v/mult (.refl-white sampled-spectrum-cfg) (.y rgb)))
+                                                        (v/add (v/mult (.refl-magenta sampled-spectrum-cfg) (- (.z rgb) (.y rgb))))
+                                                        (v/add (v/mult (.refl-red sampled-spectrum-cfg) (- (.x rgb) (.z rgb))))))
+                :else (if (<= (.x rgb) (.y rgb))
+                        (-> r
+                            (v/add (v/mult (.refl-white sampled-spectrum-cfg) (.z rgb)))
+                            (v/add (v/mult (.refl-yellow sampled-spectrum-cfg) (- (.x rgb) (.z rgb))))
+                            (v/add (v/mult (.refl-green sampled-spectrum-cfg) (- (.y rgb) (.x rgb)))))
+                        (-> r
+                            (v/add (v/mult (.refl-white sampled-spectrum-cfg) (.z rgb)))
+                            (v/add (v/mult (.refl-yellow sampled-spectrum-cfg) (- (.y rgb) (.z rgb))))
+                            (v/add (v/mult (.refl-red sampled-spectrum-cfg) (- (.x rgb) (.y rgb))))))) 0.94)
+      (v/mult (cond
+                (bool-and (<= (.x rgb) (.y rgb))
+                          (<= (.x rgb) (.z rgb))) (if (<= (.y rgb) (.z rgb))
+                                                    (-> r
+                                                        (v/add (v/mult (.illum-white sampled-spectrum-cfg) (.x rgb)))
+                                                        (v/add (v/mult (.illum-cyan sampled-spectrum-cfg) (- (.y rgb) (.x rgb))))
+                                                        (v/add (v/mult (.illum-blue sampled-spectrum-cfg) (- (.z rgb) (.y rgb)))))
+                                                    (-> r
+                                                        (v/add (v/mult (.illum-white sampled-spectrum-cfg) (.x rgb)))
+                                                        (v/add (v/mult (.illum-cyan sampled-spectrum-cfg) (- (.z rgb) (.x rgb))))
+                                                        (v/add (v/mult (.illum-green sampled-spectrum-cfg) (- (.y rgb) (.z rgb))))))
+                (bool-and (<= (.y rgb) (.x rgb))
+                          (<= (.y rgb) (.z rgb))) (if (<= (.x rgb) (.z rgb))
+                                                    (-> r
+                                                        (v/add (v/mult (.illum-white sampled-spectrum-cfg) (.y rgb)))
+                                                        (v/add (v/mult (.illum-magenta sampled-spectrum-cfg) (- (.x rgb) (.y rgb))))
+                                                        (v/add (v/mult (.illum-blue sampled-spectrum-cfg) (- (.z rgb) (.x rgb)))))
+                                                    (-> r
+                                                        (v/add (v/mult (.illum-white sampled-spectrum-cfg) (.y rgb)))
+                                                        (v/add (v/mult (.illum-magenta sampled-spectrum-cfg) (- (.z rgb) (.y rgb))))
+                                                        (v/add (v/mult (.illum-red sampled-spectrum-cfg) (- (.x rgb) (.z rgb))))))
+                :else (if (<= (.x rgb) (.y rgb))
+                        (-> r
+                            (v/add (v/mult (.illum-white sampled-spectrum-cfg) (.z rgb)))
+                            (v/add (v/mult (.illum-yellow sampled-spectrum-cfg) (- (.x rgb) (.z rgb))))
+                            (v/add (v/mult (.illum-green sampled-spectrum-cfg) (- (.y rgb) (.x rgb)))))
+                        (-> r
+                            (v/add (v/mult (.illum-white sampled-spectrum-cfg) (.z rgb)))
+                            (v/add (v/mult (.illum-yellow sampled-spectrum-cfg) (- (.y rgb) (.z rgb))))
+                            (v/add (v/mult (.illum-red sampled-spectrum-cfg) (- (.x rgb) (.y rgb))))))) 0.86445))))
+
+
+(sampled-from-rgb (make-sampled-spectrum-config 3) (Vec3. 0.0001 0.0 0.0) :reflectance)

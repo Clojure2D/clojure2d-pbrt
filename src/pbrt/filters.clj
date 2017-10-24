@@ -29,7 +29,7 @@
 
 (def ^:const ^int default-table-width 16)
 
-(deftype ReconstructionFilter [^Vec2 radius filter])
+(defrecord ReconstructionFilter [^Vec2 radius filter])
 
 (defn get-filter-config
   ""
